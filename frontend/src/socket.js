@@ -1,8 +1,8 @@
 import { io } from "socket.io-client";
 
-export const socket = io("https://chat-server-5zt5.onrender.com", {
+export const socket = io("https://chat-app-server-rsgf.onrender.com", {
   autoConnect: false, // 🔥 important
   //path: "/socket.io",
 });
 
-//https://chat-server-5zt5.onrender.com
+//https://chat-app-server-rsgf.onrender.com
