@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-export const socket = io("http://localhost:5000", {
+export const socket = io("https://chat-server-5zt5.onrender.com", {
   autoConnect: false, // 🔥 important
   path: "/socket.io",
 });
