@@ -6,10 +6,14 @@ import dotenv from "dotenv";
 import connectDB from "./configs/db.js";
 import User from "./models/User.js";
 dotenv.config();
+
 await connectDB();
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: "https://chat-app-1-3bs4.onrender.com", // তোমার Vercel frontend
+  methods: ["GET", "POST"],
+}));
 app.use(express.json());
 
 // routes
@@ -25,91 +29,56 @@ app.get("/", (req, res) => res.send("Server running"));
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "https://chat-app-1-3bs4.onrender.com", methods: ["GET", "POST"] },
-  path: "/socket.io", // online server এ sometimes custom path দরকার
+  path: "/socket.io", 
 });
 
-let onlineUsers = [];
+let onlineUsers = {}; // { userId: [socketId1, socketId2] }
 
-io.on("connection", (socket) => {
-  console.log("Socket Connected:", socket.id);
-
-  // 🔥 USER ONLINE
-  socket.on("addUser", async (userId) => {
-    socket.userId = userId;
-
-    if (!onlineUsers[userId]) {
-      onlineUsers[userId] = [];
-    }
-
-    onlineUsers[userId].push(socket.id);
-
-    await User.findByIdAndUpdate(userId, {
-      online: true,
-      lastSeen: null,
-    });
-
-    io.emit("updateUserStatus", {
-      userId,
-      online: true,
-      lastSeen: null,
-    });
-  });
-
-  // 🔥 MESSAGE
-  socket.on("sendMessage", (data) => {
-    socket.broadcast.emit("getMessage", data);
-  });
-
-  // 🔥 USER OFFLINE
-  socket.on("disconnect", async () => {
-    if (socket.userId && onlineUsers[socket.userId]) {
-      // remove this socket
-      onlineUsers[socket.userId] = onlineUsers[socket.userId].filter(
-        (id) => id !== socket.id
-      );
-
-      // যদি আর কোনো socket না থাকে, তখন offline করো
-      if (onlineUsers[socket.userId].length === 0) {
-        delete onlineUsers[socket.userId];
-
-        await User.findByIdAndUpdate(socket.userId, {
-          online: false,
-          lastSeen: new Date(),
-        });
-
-        io.emit("updateUserStatus", {
-          userId: socket.userId,
-          online: false,
-          lastSeen: new Date(),
-        });
-      }
-    }
-
-    console.log("Disconnected:", socket.id);
-  });
-});
-
+// 🔹 Emit all users status
 const sendAllUsersStatus = async () => {
-  const allUsers = await User.find({}, "_id online lastSeen");
+  const allUsers = await User.find({}, "_id online lastSeen username");
   io.emit("allUsersStatus", allUsers);
 };
 
 io.on("connection", (socket) => {
   console.log("Socket Connected:", socket.id);
 
+  // USER ONLINE
   socket.on("addUser", async (userId) => {
     socket.userId = userId;
+
+    if (!onlineUsers[userId]) onlineUsers[userId] = [];
+    onlineUsers[userId].push(socket.id);
+
     await User.findByIdAndUpdate(userId, { online: true, lastSeen: null });
-    sendAllUsersStatus(); // 🔹 emit full status
+
+    sendAllUsersStatus();
   });
 
+  // SEND MESSAGE
+  socket.on("sendMessage", (data) => {
+    // send to receiver sockets only
+    const receiverSockets = onlineUsers[data.receiverId] || [];
+    receiverSockets.forEach(sid => io.to(sid).emit("getMessage", data));
+
+    // optionally send to sender too
+    socket.emit("getMessage", data);
+  });
+
+  // USER OFFLINE
   socket.on("disconnect", async () => {
-    if (socket.userId) {
-      await User.findByIdAndUpdate(socket.userId, { online: false, lastSeen: new Date() });
-      sendAllUsersStatus(); // 🔹 emit full status
+    if (socket.userId && onlineUsers[socket.userId]) {
+      onlineUsers[socket.userId] = onlineUsers[socket.userId].filter(id => id !== socket.id);
+
+      if (onlineUsers[socket.userId].length === 0) {
+        delete onlineUsers[socket.userId];
+        await User.findByIdAndUpdate(socket.userId, { online: false, lastSeen: new Date() });
+      }
     }
+    sendAllUsersStatus();
+    console.log("Disconnected:", socket.id);
   });
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
