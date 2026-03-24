@@ -12,7 +12,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const API = "https://chat-app-server-rsgf.onrender.com"; // backend URL --- IGNORE ---
+  const API = "https://chat-server-5zt5.onrender.com"; // backend URL --- IGNORE ---
   const login = (userData) => {
     localStorage.setItem("chatUser", JSON.stringify(userData));
     setUser(userData);
