@@ -25,7 +25,7 @@ app.get("/", (req, res) => res.send("Server running"));
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "https://chat-app-1-3bs4.onrender.com", methods: ["GET", "POST"] },
-  //path: "/socket.io", // online server এ sometimes custom path দরকার
+  path: "/socket.io", // online server এ sometimes custom path দরকার
 });
 
 let onlineUsers = [];
